@@ -1,71 +1,95 @@
 using Xunit;
 using ATMSoftware.Models;
+using ATMSoftware.Validation;
+using ATMSoftware.Writer;
 
 namespace ATMSoftware.Unit.Tests
 {
     public class UnitTests
     {
         [Fact]
-        public void ValidateWithdraw_NotEnoughMoneyInBalance()
+        public void ValidatePin_EnterWrongPin_ReturnsFalse()
         {
-            var user = new User(1111, 100);
-            var system = new System(user);
+            IUser user = new User(1111, 100);
+            IValidator validator = new PinValidator(user);
 
-            bool validation = system.ValidateWithdraw(200);
+            bool validation = validator.Validate(1234);
 
             Assert.False(validation);
         }
 
         [Fact]
-        public void ValidateWithdraw_WithdrawMoneyLimit()
+        public void ValidatePin_EnterCorrectPin_ReturnsTrue()
         {
-            var user = new User(1111, 2000);
-            var system = new System(user);
+            IUser user = new User(1111, 100);
+            IValidator validator = new PinValidator(user);
 
-            bool validation = system.ValidateWithdraw(1200);
+            bool validation = validator.Validate(1111);
+
+            Assert.True(validation);
+        }
+
+        [Fact]
+        public void ValidateWithdraw_NotEnoughMoneyInBalance_ReturnsFalse()
+        {
+            IUser user = new User(1111, 100);
+            IValidator validator = new WithdrawValidator(user);
+
+            bool validation = validator.Validate(500);
 
             Assert.False(validation);
         }
 
         [Fact]
-        public void ValidateWithdraw_TransactionCountLimit()
+        public void ValidateWithdraw_WithdrawMoneyLimit_ReturnsFalse()
         {
-            var user = new User(1111, 2000);
+            IUser user = new User(1111, 2000);
+            IValidator validator = new WithdrawValidator(user);
+
+            bool validation = validator.Validate(1200);
+
+            Assert.False(validation);
+        }
+
+        [Fact]
+        public void ValidateWithdraw_TransactionCountLimit_ReturnsFalse()
+        {
+            IUser user = new User(1111, 2000);
             user.TransactionCount = 5;
-            var system = new System(user);
+            IValidator validator = new WithdrawValidator(user);
 
-            bool validation = system.ValidateWithdraw(200);
-
-            Assert.False(validation);
-        }
-
-        [Fact]
-        public void ValidateWithdraw_EnterZero()
-        {
-            var user = new User(1111, 2000);
-            var system = new System(user);
-
-            bool validation = system.ValidateWithdraw(0);
+            bool validation = validator.Validate(200);
 
             Assert.False(validation);
         }
 
         [Fact]
-        public void ValidateWithdraw_EnterNegativeNumber()
+        public void ValidateWithdraw_EnterZero_ReturnsFalse()
         {
-            var user = new User(1111, 2000);
-            var system = new System(user);
+            IUser user = new User(1111, 2000);
+            IValidator validator = new WithdrawValidator(user);
 
-            bool validation = system.ValidateWithdraw(-100);
+            bool validation = validator.Validate(0);
 
             Assert.False(validation);
         }
 
         [Fact]
-        public void WithdrawCash()
+        public void ValidateWithdraw_EnterNegativeNumber_ReturnsFalse()
         {
-            var user = new User(1111, 2000);
-            var system = new System(user);
+            IUser user = new User(1111, 2000);
+            IValidator validator = new WithdrawValidator(user);
+
+            bool validation = validator.Validate(-200);
+
+            Assert.False(validation);
+        }
+
+        [Fact]
+        public void WithdrawCash_EnterGoodNumber_ReturnsCorrectBalance()
+        {
+            IUser user = new User(1111, 2000);
+            var system = new System(user, new PinValidator(user), new WithdrawValidator(user), new ConsoleWriter());
 
             system.WithdrawCash(500);
 
@@ -73,9 +97,9 @@ namespace ATMSoftware.Unit.Tests
         }
 
         [Fact]
-        public void AddTransaction_TransactionCountIncrease()
+        public void AddTransaction_AddNewTransaction_TransactionCountIncrease()
         {
-            var user = new User(1111, 2000);
+            IUser user = new User(1111, 2000);
             var system = new System(user);
 
             system.AddTransaction(500);
@@ -84,9 +108,9 @@ namespace ATMSoftware.Unit.Tests
         }
 
         [Fact]
-        public void AddTransaction_SavedTransaction()
+        public void AddTransaction_AddNewTransaction_TransactionIsSaved()
         {
-            var user = new User(1111, 2000);
+            IUser user = new User(1111, 2000);
             var system = new System(user);
 
             system.AddTransaction(500);

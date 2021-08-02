@@ -1,60 +1,73 @@
 ﻿using System;
 using ATMSoftware.Models;
+using ATMSoftware.Validation;
+using ATMSoftware.Writer;
 
 namespace ATMSoftware
 {
     public class System
     {
-        public User User;
+        public IUser User;
+        private readonly IValidator _pinValidator;
+        private readonly IValidator _withdrawValidator;
+        private readonly IConsoleWriter _writer;
 
-        public System(User user)
+        public System(IUser user)
         {
             User = user;
         }
 
-        public void ValidatePin()
+        public System(IUser user, IValidator pinValidator, IValidator withdrawValidator, IConsoleWriter writer)
         {
-            int enteredPin = 0;
+            User = user;
+            _pinValidator = pinValidator;
+            _withdrawValidator = withdrawValidator;
+            _writer = writer;
+        }
+
+        public void Start()
+        {
             int attempts = 0;
-            do
+
+            while(attempts < 3)
             {
-                Console.Write("Enter your PIN: ");
+                _writer.Write("Enter your PIN: ");
                 try
                 {
-                    enteredPin = Convert.ToInt32(Console.ReadLine());
+                    int enteredPin = Convert.ToInt32(Console.ReadLine());
+                    if(_pinValidator.Validate(enteredPin) == true)
+                    {
+                        ShowMenu();
+                    }
+                    else
+                    {
+                        attempts++;
+                        if(attempts == 1)
+                        {
+                            _writer.Write($"Wrong Pin! You have {3 - attempts} more attempts.\n");
+                        }
+                        else if(attempts == 2)
+                        {
+                            _writer.Write($"Wrong Pin! You have {3 - attempts} more attempt.\n");
+                        }
+                    }
                 }
                 catch(FormatException ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    _writer.Write($"{ex.Message}\n");
                 }
-
-                attempts++;
-                if(enteredPin == User.Pin)
-                {
-                    ShowMenu();
-                }
-
-                if(attempts == 1)
-                {
-                    Console.WriteLine($"Wrong PIN! You have {3 - attempts} more attempts.");
-                }
-                else if(attempts == 2)
-                {
-                    Console.WriteLine($"Wrong PIN! You have {3 - attempts} more attempt.");
-                }
-            } while(attempts < 3);
-
-            Console.WriteLine("\nCard has been blocked for safety. Contact your bank.");
+            }
+            _writer.Write("\nCard has been blocked for safety. Contact your bank.\n");
         }
 
         public void ShowMenu()
         {
-            Console.Clear();
-            Console.WriteLine("1 - Balance");
-            Console.WriteLine("2 - Last 5 transactions");
-            Console.WriteLine("3 - Withdraw cash");
-            Console.WriteLine("4 - Exit");
-            Console.Write("\nEnter your option: ");
+            _writer.Clear();
+            _writer.Write("1 - Balance\n");
+            _writer.Write("2 - Last 5 transactions\n");
+            _writer.Write("3 - Withdraw cash\n");
+            _writer.Write("4 - Exit\n");
+            _writer.Write("\nEnter your option: ");
 
             while(true)
             {
@@ -75,7 +88,7 @@ namespace ATMSoftware
                     case "3":
                         {
                             int enteredMoney = GetUserInput();
-                            if(ValidateWithdraw(enteredMoney))
+                            if(_withdrawValidator.Validate(enteredMoney))
                             {
                                 WithdrawCash(enteredMoney);
                                 AddTransaction(enteredMoney);
@@ -85,35 +98,34 @@ namespace ATMSoftware
                         }
                     case "4":
                         {
-                            Console.WriteLine("Don't forget to take your card!");
+                            _writer.Write("Don't forget to take your card!\n");
                             Environment.Exit(0);
                             break;
                         }
                     default:
                         {
-                            Console.WriteLine("Invalid input!");
-                            Console.Write("\nEnter your option: ");
+                            _writer.Write("Invalid input!\n");
+                            _writer.Write("\nEnter your option: ");
                             break;
                         }
                 }
             }
         }
-
         public int GetUserInput()
         {
-            Console.Clear();
+            _writer.Clear();
             int money;
             while(true)
             {
                 try
                 {
-                    Console.Write("Enter the amount of money you want to withdraw: ");
+                    _writer.Write("Enter the amount of money you want to withdraw: ");
                     money = Convert.ToInt32(Console.ReadLine());
                     break;
                 }
                 catch(FormatException ex)
                 {
-                    Console.WriteLine(ex.Message);
+                    _writer.Write($"{ex.Message}\n");
                 }
             }
             return money;
@@ -121,62 +133,40 @@ namespace ATMSoftware
 
         public void ContinueToMenu()
         {
-            Console.Write("\nPress any key to continue.");
+            _writer.Write("\nPress any key to continue.");
             Console.ReadKey();
             ShowMenu();
         }
 
         public void ShowBalance()
         {
-            Console.Clear();
-            Console.WriteLine($"Your balance: {User.Balance}$");
+            _writer.Clear();
+            _writer.Write($"Your balance: {User.Balance}$\n");
         }
 
         public void ShowPreviousTransactions()
         {
-            Console.Clear();
-            Console.WriteLine("Your 5 previous transactions\n");
-            foreach(Transaction transaction in User.Transactions)
+            _writer.Clear();
+            _writer.Write("Your 5 previous transactions\n");
+            _writer.Write("\n");
+            foreach(ITransaction transaction in User.Transactions)
             {
-                Console.WriteLine($"{transaction.Amount}$ on {transaction.Date:d} at {transaction.Date:t}");
+                _writer.Write($"{transaction.Amount}$ on {transaction.Date:d} at {transaction.Date:t}\n");
             }
-        }
-
-        public bool ValidateWithdraw(int money)
-        {
-            if(money > User.Balance)
-            {
-                Console.WriteLine("You don't have enough money in your account!");
-                return false;
-            }
-            else if(money > 1000)
-            {
-                Console.WriteLine("The withdrawal limit is 1000$.");
-                return false;
-            }
-            else if(User.TransactionCount == 5)
-            {
-                Console.WriteLine("You can only withdraw money 5 times a day.");
-                return false;
-            }
-            else if(money <= 0)
-            {
-                Console.WriteLine("The minimum amount you can withdraw is 1$.");
-                return false;
-            }
-            return true;
         }
 
         public void WithdrawCash(int money)
         {
             User.Balance -= money;
-            Console.WriteLine($"You successfully withdrawn {money}$.");
+            _writer.Write($"You successfully withdrawn {money}$.\n");
         }
 
         public void AddTransaction(int money)
         {
             User.TransactionCount++;
-            var transaction = new Transaction(money, DateTime.Now);
+            ITransaction transaction = new Transaction();
+            transaction.Amount = money;
+            transaction.Date = DateTime.Now;
             User.Transactions.Add(transaction);
         }
     }
